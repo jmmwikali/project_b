@@ -48,6 +48,13 @@ allowed_origins = os.environ.get(
 
 CORS(app, supports_credentials=True, origins=allowed_origins)
 
+# Handle CORS preflight requests
+@app.before_request
+def handle_options():
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        return response
+
 
 # ============================================================
 # MODELS
