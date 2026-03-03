@@ -892,11 +892,11 @@ def seed_database():
     for name in ['Animal Feeds', 'Farm Tools', 'Medicines']:
         if not Category.query.filter_by(name=name).first():
             db.session.add(Category(name=name))
-    if not User.query.filter_by(username='admin').first():
-        admin = User(username='admin', name='Admin User', role='admin')
-        admin.set_password('admin123')
+    if not User.query.filter_by(username='Mercy41').first():
+        admin = User(username='Mercy41', name='Mercy Githehu', role='admin')
+        admin.set_password('1234')
         db.session.add(admin)
-        print('Default admin created  →  admin / admin123')
+        print('Default admin created  →  Mercy41 / 1234')
         print('IMPORTANT: Change this password after first login!')
     db.session.commit()
 
