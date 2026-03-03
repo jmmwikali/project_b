@@ -894,11 +894,13 @@ def seed_database():
 # ENTRY POINT
 # ============================================================
 
+# ── Run on every startup (works with both gunicorn and python app.py) ──
+with app.app_context():
+    db.create_all()
+    seed_database()
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        seed_database()
-        print('Agrovet API running at http://localhost:5000')
+    print('Agrovet API running at http://localhost:5000')
     app.run(
         debug=os.environ.get('FLASK_DEBUG', 'true').lower() == 'true',
         port=5000
