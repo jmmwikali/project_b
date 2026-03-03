@@ -46,7 +46,11 @@ allowed_origins = os.environ.get(
     'http://localhost:3000,https://jmmwikali.github.io'
 ).split(',')
 
-CORS(app, supports_credentials=True, origins=allowed_origins)
+CORS(app,
+     supports_credentials=True,
+     origins=['https://jmmwikali.github.io'],
+     allow_headers=['Content-Type'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
 # Handle CORS preflight requests
 @app.before_request
