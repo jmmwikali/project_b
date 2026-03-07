@@ -553,6 +553,24 @@ def _build_receipt(sale):
         'total': float(sale.total_amount),
     }
 
+@app.route('/api/sales/by-date/<string:sale_date>', methods=['DELETE'])
+@admin_required
+def delete_sales_by_date(sale_date):
+    try:
+        from datetime import datetime
+        parsed = datetime.strptime(sale_date, '%Y-%m-%d').date()
+    except ValueError:
+        return err('Invalid date format. Use YYYY-MM-DD')
+
+    sales = Sale.query.filter_by(date=parsed).all()
+    if not sales:
+        return err(f'No sales found for {sale_date}', 404)
+
+    count = len(sales)
+    for sale in sales:
+        db.session.delete(sale)
+    db.session.commit()
+    return ok({'message': f'Deleted {count} sale(s) for {sale_date}'})
 
 @app.route('/api/sales/<int:sale_id>/receipt', methods=['GET'])
 @login_required
