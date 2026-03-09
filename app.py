@@ -210,6 +210,38 @@ class Expense(db.Model):
         }
 
 
+class Debt(db.Model):
+    __tablename__ = 'debts'
+    id          = db.Column(db.Integer, primary_key=True)
+    person_name = db.Column(db.String(100), nullable=False)
+    item_name   = db.Column(db.String(200), nullable=False)
+    quantity    = db.Column(db.Numeric(10, 2), nullable=False)
+    unit_price  = db.Column(db.Numeric(12, 2), nullable=False)
+    total_cost  = db.Column(db.Numeric(12, 2), nullable=False)
+    date_added  = db.Column(db.Date, nullable=False, default=lambda: datetime.utcnow().date())
+    cleared     = db.Column(db.Boolean, default=False)
+    cleared_at  = db.Column(db.DateTime, nullable=True)
+    notes       = db.Column(db.String(300), nullable=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'))
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        days = (datetime.utcnow().date() - self.date_added).days if not self.cleared else 0
+        return {
+            'id':          self.id,
+            'person_name': self.person_name,
+            'item_name':   self.item_name,
+            'quantity':    float(self.quantity),
+            'unit_price':  float(self.unit_price),
+            'total_cost':  float(self.total_cost),
+            'date_added':  str(self.date_added),
+            'cleared':     self.cleared,
+            'cleared_at':  str(self.cleared_at) if self.cleared_at else None,
+            'notes':       self.notes,
+            'days_outstanding': days,
+        }
+
+
 class StockMovement(db.Model):
     __tablename__ = 'stock_movements'
     id              = db.Column(db.Integer, primary_key=True)
@@ -861,6 +893,64 @@ def delete_user(user_id):
 # ============================================================
 # CATEGORIES
 # ============================================================
+
+# ============================================================
+# DEBTS
+# ============================================================
+
+@app.route('/api/debts', methods=['GET'])
+@login_required
+def get_debts():
+    debts = Debt.query.order_by(Debt.cleared, Debt.date_added.asc()).all()
+    return ok({'debts': [d.to_dict() for d in debts]})
+
+
+@app.route('/api/debts', methods=['POST'])
+@login_required
+def create_debt():
+    d = request.get_json() or {}
+    for f in ['person_name', 'item_name', 'quantity', 'unit_price']:
+        if not d.get(f):
+            return err(f'Missing field: {f}')
+    qty   = float(d['quantity'])
+    price = float(d['unit_price'])
+    debt  = Debt(
+        person_name = d['person_name'].strip(),
+        item_name   = d['item_name'].strip(),
+        quantity    = qty,
+        unit_price  = price,
+        total_cost  = qty * price,
+        date_added  = datetime.strptime(d['date_added'], '%Y-%m-%d').date() if d.get('date_added') else datetime.utcnow().date(),
+        notes       = d.get('notes', ''),
+        user_id     = current_uid(),
+    )
+    db.session.add(debt)
+    db.session.commit()
+    return ok({'debt': debt.to_dict(), 'message': 'Debt recorded'}, 201)
+
+
+@app.route('/api/debts/<int:debt_id>/clear', methods=['POST'])
+@login_required
+def clear_debt(debt_id):
+    debt = db.session.get(Debt, debt_id)
+    if not debt:
+        return err('Debt not found', 404)
+    debt.cleared   = True
+    debt.cleared_at = datetime.utcnow()
+    db.session.commit()
+    return ok({'debt': debt.to_dict(), 'message': 'Debt cleared'})
+
+
+@app.route('/api/debts/<int:debt_id>', methods=['DELETE'])
+@admin_required
+def delete_debt(debt_id):
+    debt = db.session.get(Debt, debt_id)
+    if not debt:
+        return err('Debt not found', 404)
+    db.session.delete(debt)
+    db.session.commit()
+    return ok({'message': 'Debt deleted'})
+
 
 @app.route('/api/categories', methods=['GET'])
 @login_required
