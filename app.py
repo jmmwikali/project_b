@@ -228,18 +228,28 @@ class Debt(db.Model):
     def to_dict(self):
         days = (datetime.utcnow().date() - self.date_added).days if not self.cleared else 0
         return {
-            'id':          self.id,
-            'person_name': self.person_name,
-            'item_name':   self.item_name,
-            'quantity':    float(self.quantity),
-            'unit_price':  float(self.unit_price),
-            'total_cost':  float(self.total_cost),
-            'date_added':  str(self.date_added),
-            'cleared':     self.cleared,
-            'cleared_at':  str(self.cleared_at) if self.cleared_at else None,
-            'notes':       self.notes,
+            'id':               self.id,
+            'person_name':      self.person_name,
+            'item_name':        self.item_name,
+            'quantity':         float(self.quantity),
+            'unit_price':       float(self.unit_price),
+            'total_cost':       float(self.total_cost),
+            'date_added':       str(self.date_added),
+            'cleared':          self.cleared,
+            'cleared_at':       str(self.cleared_at) if self.cleared_at else None,
+            'notes':            self.notes,
             'days_outstanding': days,
         }
+
+
+class Setting(db.Model):
+    __tablename__ = 'settings'
+    id    = db.Column(db.Integer, primary_key=True)
+    key   = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.String(500), nullable=False)
+
+    def to_dict(self):
+        return {'key': self.key, 'value': self.value}
 
 
 class StockMovement(db.Model):
@@ -894,6 +904,27 @@ def delete_user(user_id):
 # CATEGORIES
 # ============================================================
 
+@app.route('/api/categories', methods=['GET'])
+@login_required
+def get_categories():
+    return ok({'categories': [c.to_dict() for c in Category.query.order_by(Category.name).all()]})
+
+
+@app.route('/api/categories', methods=['POST'])
+@admin_required
+def create_category():
+    d = request.get_json() or {}
+    name = d.get('name', '').strip()
+    if not name:
+        return err('Category name is required')
+    if Category.query.filter_by(name=name).first():
+        return err('Category already exists', 409)
+    cat = Category(name=name)
+    db.session.add(cat)
+    db.session.commit()
+    return ok({'category': cat.to_dict()}, 201)
+
+
 # ============================================================
 # DEBTS
 # ============================================================
@@ -935,7 +966,7 @@ def clear_debt(debt_id):
     debt = db.session.get(Debt, debt_id)
     if not debt:
         return err('Debt not found', 404)
-    debt.cleared   = True
+    debt.cleared    = True
     debt.cleared_at = datetime.utcnow()
     db.session.commit()
     return ok({'debt': debt.to_dict(), 'message': 'Debt cleared'})
@@ -952,25 +983,29 @@ def delete_debt(debt_id):
     return ok({'message': 'Debt deleted'})
 
 
-@app.route('/api/categories', methods=['GET'])
+# ============================================================
+# SETTINGS
+# ============================================================
+
+@app.route('/api/settings', methods=['GET'])
 @login_required
-def get_categories():
-    return ok({'categories': [c.to_dict() for c in Category.query.order_by(Category.name).all()]})
+def get_settings():
+    rows = Setting.query.all()
+    return ok({r.key: r.value for r in rows})
 
 
-@app.route('/api/categories', methods=['POST'])
+@app.route('/api/settings', methods=['POST'])
 @admin_required
-def create_category():
+def save_settings():
     d = request.get_json() or {}
-    name = d.get('name', '').strip()
-    if not name:
-        return err('Category name is required')
-    if Category.query.filter_by(name=name).first():
-        return err('Category already exists', 409)
-    cat = Category(name=name)
-    db.session.add(cat)
+    for key, value in d.items():
+        row = Setting.query.filter_by(key=key).first()
+        if row:
+            row.value = str(value)
+        else:
+            db.session.add(Setting(key=key, value=str(value)))
     db.session.commit()
-    return ok({'category': cat.to_dict()}, 201)
+    return ok({'message': 'Settings saved'})
 
 
 # ============================================================
