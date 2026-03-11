@@ -172,7 +172,7 @@ class SaleItem(db.Model):
     id       = db.Column(db.Integer, primary_key=True)
     sale_id  = db.Column(db.Integer, db.ForeignKey('sales.id',  ondelete='CASCADE'),  nullable=False)
     item_id  = db.Column(db.Integer, db.ForeignKey('items.id',  ondelete='RESTRICT'), nullable=False)
-    quantity = db.Column(db.Integer, nullable=False)
+    quantity = db.Column(db.Numeric(10, 2), nullable=False)
     price    = db.Column(db.Numeric(12, 2), nullable=False)
     cost     = db.Column(db.Numeric(12, 2), nullable=False)
     profit   = db.Column(db.Numeric(12, 2), nullable=False)
@@ -547,7 +547,7 @@ def create_sale():
         item = db.session.get(Item, ci.get('item_id'))
         if not item:
             return err(f'Item ID {ci.get("item_id")} not found', 404)
-        qty = int(ci.get('quantity', 0))
+        qty = float(ci.get('quantity', 0))
         if qty <= 0:
             return err(f'Invalid quantity for "{item.name}"')
         if item.quantity < qty:
@@ -613,6 +613,23 @@ def delete_sales_by_date(sale_date):
         db.session.delete(sale)
     db.session.commit()
     return ok({'message': f'Deleted {count} sale(s) for {sale_date}'})
+
+@app.route('/api/sales/<int:sale_id>', methods=['DELETE'])
+@admin_required
+def delete_single_sale(sale_id):
+    sale = db.session.get(Sale, sale_id)
+    if not sale:
+        return err('Sale not found', 404)
+    for si in sale.sale_items:
+        item = db.session.get(Item, si.item_id)
+        if item:
+            item.quantity += float(si.quantity)
+            log_movement(item.id, 'adjustment', float(si.quantity),
+                         f'Sale #{sale_id} deleted', current_uid())
+    db.session.delete(sale)
+    db.session.commit()
+    return ok({'message': f'Sale #{sale_id} deleted and stock restored'})
+
 
 @app.route('/api/sales/<int:sale_id>/receipt', methods=['GET'])
 @login_required
